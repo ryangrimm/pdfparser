@@ -1,7 +1,12 @@
+import six
+import os
+import sys
 from libcpp cimport bool
 from libcpp.string cimport string
+from collections import defaultdict
 from cpython cimport bool as PyBool
 from cpython.object cimport Py_EQ, Py_NE
+from .utils import xmp_to_dict, parse_datestring
 
 ctypedef bool GBool
 DEF PRECISION=1e-6
@@ -34,9 +39,25 @@ cdef extern from "OutputDev.h":
 cdef extern from 'Annot.h':
     cdef cppclass Annot:
         pass
+
+cdef extern from 'poppler/Dict.h':
+    cdef cppclass Dict:
+        int getLength()
+        char *getKey(int i)
+        Object getVal(int i)
+
+
+cdef extern from 'poppler/Object.h':
+    cdef cppclass Object:
+        GBool isDict()
+        Dict *getDict()
+        GBool isString()
+        GooString *takeString()
+
         
 cdef extern from "PDFDoc.h":
     cdef cppclass PDFDoc:
+        GBool isOk()
         int getNumPages()
         void displayPage(OutputDev *out, int page,
            double hDPI, double vDPI, int rotate,
@@ -47,6 +68,8 @@ cdef extern from "PDFDoc.h":
             void *annotDisplayDecideCbkData = NULL, GBool copyXRef = False)
         double getPageMediaWidth(int page)
         double getPageMediaHeight(int page)
+        GooString *readMetadata()
+        Object getDocInfo()
         
 cdef extern from "PDFDocFactory.h":
     cdef cppclass PDFDocFactory:
@@ -64,6 +87,7 @@ cdef extern from "TextOutputDev.h":
         void incRefCnt()
         void decRefCnt()
         TextFlow *getFlows()
+        GooString *getText(double xMin, double yMin, double xMax, double yMax)
         
     cdef cppclass TextFlow:
         TextFlow *getNext()
@@ -113,11 +137,25 @@ cdef class Document:
         int _pg
         PyBool phys_layout
         double fixed_pitch
-    def __cinit__(self, char *fname, PyBool phys_layout=False, double fixed_pitch=0, PyBool quiet=False):
-        self._doc=PDFDocFactory().createPDFDoc(GooString(fname))
-        self._pg=0
-        self.phys_layout=phys_layout
-        self.fixed_pitch=fixed_pitch
+
+    def __cinit__(self, object fname, PyBool phys_layout=False, double fixed_pitch=0, PyBool quiet=False):
+        # Sanity checks
+        if not isinstance(fname, (six.binary_type, six.text_type)):
+            raise ValueError("Invalid path: " + repr(fname))
+        if isinstance(fname, six.binary_type):
+            fname = fname.decode(sys.getfilesystemencoding())
+        if not os.path.exists(fname) or not os.path.isfile(fname):
+            raise IOError("Not a valid file path: " + fname)
+
+        self._doc = PDFDocFactory().createPDFDoc(
+            GooString(fname.encode(sys.getfilesystemencoding()))
+        )
+        if not self._doc.isOk():
+            raise IOError("Error opening file: " + fname)
+
+        self._pg = 0
+        self.phys_layout = phys_layout
+        self.fixed_pitch = fixed_pitch
 
         if quiet:
             globalParams.setErrQuiet(True)
@@ -150,8 +188,35 @@ cdef class Document:
             raise StopIteration()
         self._pg+=1
         return self.get_page(self._pg)
-        
+
+    property metadata:
+        def __get__(self):
+            metadata = self._doc.getDocInfo()
+            if metadata.isDict():
+                mtdt = {}
+                for i in range(0, metadata.getDict().getLength()):
+                    key = metadata.getDict().getKey(i).lower()
+                    val = metadata.getDict().getVal(i)
+                    if val.isString():
+                        mtdt[key] = val.takeString().getCString().decode(
+                            'UTF-8', 'replace'
+                        )
+                        # is it a date?
+                        if b'date' in key and mtdt[key].startswith('D:'):
+                            try:
+                                mtdt[key] = str(parse_datestring(mtdt[key]))
+                            except ValueError:
+                                pass
+            else:
+                mtdt = {}
+            return mtdt
    
+    property xmp_metadata:
+        def __get__(self):
+            metadata = self._doc.readMetadata()
+            if metadata:
+                return xmp_to_dict(metadata.getCString().decode('UTF-8').strip())
+            return defaultdict(dict)
         
 cdef class Page:
     cdef:
@@ -193,7 +258,16 @@ cdef class Page:
         """Size of page as (width, height)"""
         def __get__(self):
             return self.doc.get_page_size(self.page_no)
-        
+
+    property text:
+        def __get__(self):
+            cdef double xMin, yMin, xMax, yMax
+            xMin = 0
+            yMin = 0
+            xMax = self.size[0]
+            yMax = self.size[1]
+            return self.page.getText(xMin, yMin, xMax, yMax).getCString().decode('UTF-8', 'replace')       
+
 cdef class Flow:
     cdef: 
         TextFlow *flow
