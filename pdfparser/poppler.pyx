@@ -3,10 +3,9 @@ import os
 import sys
 from libcpp cimport bool
 from libcpp.string cimport string
-from collections import defaultdict
 from cpython cimport bool as PyBool
 from cpython.object cimport Py_EQ, Py_NE
-from .utils import xmp_to_dict, parse_datestring
+from .utils import parse_datestring
 
 ctypedef bool GBool
 DEF PRECISION=1e-6
@@ -210,13 +209,6 @@ cdef class Document:
             else:
                 mtdt = {}
             return mtdt
-   
-    property xmp_metadata:
-        def __get__(self):
-            metadata = self._doc.readMetadata()
-            if metadata:
-                return xmp_to_dict(metadata.getCString().decode('UTF-8').strip())
-            return defaultdict(dict)
         
 cdef class Page:
     cdef:
