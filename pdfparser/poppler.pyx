@@ -57,6 +57,7 @@ cdef extern from 'poppler/Object.h':
 cdef extern from "PDFDoc.h":
     cdef cppclass PDFDoc:
         GBool isOk()
+        GBool isLinearized()
         int getNumPages()
         void displayPage(OutputDev *out, int page,
            double hDPI, double vDPI, int rotate,
@@ -166,6 +167,10 @@ cdef class Document:
     property no_of_pages:
         def __get__(self):
             return self._doc.getNumPages()  
+            
+    property linearized:
+        def __get__(self):
+            return self._doc.isLinearized()  
         
     cdef void render_page(self, int page_no, OutputDev *dev):
         self._doc.displayPage(dev, page_no, RESOLUTION, RESOLUTION, 0, True, False, False)
