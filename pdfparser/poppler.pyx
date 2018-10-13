@@ -189,6 +189,7 @@ cdef class Document:
     
     def __next__(self):
         if self._pg >= self.no_of_pages:
+            self._pg = 0
             raise StopIteration()
         self._pg+=1
         return self.get_page(self._pg)
@@ -456,6 +457,7 @@ cdef class CompactListIterator:
         
     def __next__(self):
         if self.pos >= len(self.index):
+            self.pos = 0
             raise StopIteration()
         i= self.items[self.index[self.pos]]
         self.pos+=1
