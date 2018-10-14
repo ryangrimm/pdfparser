@@ -191,7 +191,7 @@ cdef class Document:
         if self._pg >= self.no_of_pages:
             self._pg = 0
             raise StopIteration()
-        self._pg+=1
+        self._pg += 1
         return self.get_page(self._pg)
 
     property metadata:
@@ -503,6 +503,7 @@ cdef class Line:
         TextLine *line
         double x1, y1, x2, y2
         unicode _text
+        bool _contains_bold_text
         list _bboxes
         CompactList _fonts
         
@@ -518,6 +519,7 @@ cdef class Line:
         self.y2 = 0
         self._bboxes=[]
         self._fonts=CompactList()
+        self._contains_bold_text = False
         self._get_text()
         assert len(self._text) == len(self._bboxes)
            
@@ -547,7 +549,17 @@ cdef class Line:
                     
                 self._bboxes.append(last_bbox)
                 w.getColor(&r, &g, &b)
-                font_name=w.getFontName(i)
+                font_info=w.getFontInfo(i)
+                font_name = font_info.getFontName()
+
+                # Ideally we'd be able to check the GfxFont::getWeight() vaule
+                # to see if it's equal to GfxFont::W700, but I can't figure out
+                # a way to access the GfxFont.
+                if self._contains_bold_text == False:
+                    lower_font_name = font_name.getCString().decode('UTF-8', 'replace').lower()
+                    if font_info.isBold() or "bold" in lower_font_name:
+                        self._contains_bold_text = True
+                        
                 last_font=FontInfo(font_name.getCString().decode('UTF-8', 'replace') if <unsigned long>font_name != 0 else u"unknown", # In rare cases font name is not UTF-8 or font name is NULL
                                    w.getFontSize(),
                                    Color(r,g,b)
@@ -594,6 +606,9 @@ cdef class Line:
         def __get__(self):
             return self._fonts
             
+    property contains_bold_text:
+        def __get__(self):
+            return self._contains_bold_text
         
     
         
