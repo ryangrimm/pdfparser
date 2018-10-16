@@ -504,6 +504,7 @@ cdef class Line:
         double x1, y1, x2, y2
         unicode _text
         bool _contains_bold_text
+        double _max_font_size
         list _bboxes
         CompactList _fonts
         
@@ -520,6 +521,7 @@ cdef class Line:
         self._bboxes=[]
         self._fonts=CompactList()
         self._contains_bold_text = False
+        self._max_font_size = 0
         self._get_text()
         assert len(self._text) == len(self._bboxes)
            
@@ -546,6 +548,9 @@ cdef class Line:
                 # if previous word is space update it's right end
                 if i == 0 and words and words[-1] == u' ':
                     self._bboxes[-1].x2=last_bbox.x1
+
+                if self._max_font_size < w.getFontSize():
+                    self._max_font_size = w.getFontSize()
                     
                 self._bboxes.append(last_bbox)
                 w.getColor(&r, &g, &b)
@@ -610,6 +615,9 @@ cdef class Line:
         def __get__(self):
             return self._contains_bold_text
         
+    property max_font_size:
+        def __get__(self):
+            return self._max_font_size
     
         
     
