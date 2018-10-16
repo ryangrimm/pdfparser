@@ -549,24 +549,25 @@ cdef class Line:
                 if i == 0 and words and words[-1] == u' ':
                     self._bboxes[-1].x2=last_bbox.x1
 
-                if self._max_font_size < w.getFontSize():
-                    self._max_font_size = w.getFontSize()
+                font_size = w.getFontSize()
+                if self._max_font_size < font_size:
+                    self._max_font_size = font_size
                     
                 self._bboxes.append(last_bbox)
                 w.getColor(&r, &g, &b)
                 font_info=w.getFontInfo(i)
                 font_name = font_info.getFontName()
+                py_font_name = font_name.getCString().decode('UTF-8', 'replace') if <unsigned long>font_name != 0 else u"unknown"
 
                 # Ideally we'd be able to check the GfxFont::getWeight() vaule
                 # to see if it's equal to GfxFont::W700, but I can't figure out
                 # a way to access the GfxFont.
                 if self._contains_bold_text == False:
-                    lower_font_name = font_name.getCString().decode('UTF-8', 'replace').lower()
-                    if font_info.isBold() or "bold" in lower_font_name:
+                    if font_info.isBold() or "bold" in py_font_name.lower():
                         self._contains_bold_text = True
-                        
-                last_font=FontInfo(font_name.getCString().decode('UTF-8', 'replace') if <unsigned long>font_name != 0 else u"unknown", # In rare cases font name is not UTF-8 or font name is NULL
-                                   w.getFontSize(),
+
+                last_font=FontInfo(py_font_name , # In rare cases font name is not UTF-8 or font name is NULL
+                                   font_size,
                                    Color(r,g,b)
                                    )
                 self._fonts.append(last_font)
