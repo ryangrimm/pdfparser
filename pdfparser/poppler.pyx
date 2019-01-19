@@ -28,7 +28,7 @@ cdef extern from "goo/GooString.h":
     cdef cppclass GooString:
         GooString(const char *sA)
         int getLength()
-        char *getCString()
+        const char *c_str()
         char getChar(int i)
 
 cdef extern from "OutputDev.h":
@@ -111,12 +111,12 @@ cdef extern from "TextOutputDev.h":
            double *xMaxA, double *yMaxA)
         GBool hasSpaceAfter  ()
         TextFontInfo *getFontInfo(int idx)
-        GooString *getFontName(int idx)
+        const GooString *getFontName(int idx)
         double getFontSize()
         void getColor(double *r, double *g, double *b)
         
     cdef cppclass TextFontInfo:
-        GooString *getFontName() 
+        const GooString *getFontName() 
         double getAscent();
         double getDescent();
 
@@ -203,7 +203,7 @@ cdef class Document:
                     key = metadata.getDict().getKey(i).lower()
                     val = metadata.getDict().getVal(i)
                     if val.isString():
-                        mtdt[key] = val.takeString().getCString().decode(
+                        mtdt[key] = val.takeString().c_str().decode(
                             'UTF-8', 'replace'
                         )
                         # is it a date?
@@ -264,7 +264,7 @@ cdef class Page:
             yMin = 0
             xMax = self.size[0]
             yMax = self.size[1]
-            return self.page.getText(xMin, yMin, xMax, yMax).getCString().decode('UTF-8', 'replace')       
+            return self.page.getText(xMin, yMin, xMax, yMax).c_str().decode('UTF-8', 'replace')       
 
 cdef class Flow:
     cdef: 
@@ -557,7 +557,7 @@ cdef class Line:
                 w.getColor(&r, &g, &b)
                 font_info=w.getFontInfo(i)
                 font_name = font_info.getFontName()
-                py_font_name = font_name.getCString().decode('UTF-8', 'replace') if <unsigned long>font_name != 0 else u"unknown"
+                py_font_name = font_name.c_str().decode('UTF-8', 'replace') if <unsigned long>font_name != 0 else u"unknown"
 
                 # Ideally we'd be able to check the GfxFont::getWeight() vaule
                 # to see if it's equal to GfxFont::W700, but I can't figure out
@@ -573,8 +573,8 @@ cdef class Line:
                 self._fonts.append(last_font)
             #and then text as UTF-8 bytes
             s=w.getText()
-            #print s.getCString(), w.getLength(), len(s.getCString())
-            words.append(s.getCString().decode('UTF-8')) # decoded to python unicode string
+            #print s.c_str(), w.getLength(), len(s.c_str())
+            words.append(s.c_str().decode('UTF-8')) # decoded to python unicode string
             del s
             # must have same ammount of bboxes and characters in word
             assert len(words[-1]) == wlen
